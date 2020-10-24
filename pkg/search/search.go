@@ -15,39 +15,35 @@ type Result struct {
 }
 
 func All(ctx context.Context, phrase string, files []string)<-chan []Result{
-	ch := make(chan []Result,len(files))
-	defer close(ch)
-	
+	ch := make(chan []Result)
 	wg := sync.WaitGroup{}
 	for i,file := range files{
 		wg.Add(1)
-		println("gorutine %v start ",i)
-		go func(){
+		go func(ctx context.Context, fl string, i int, ch chan<- []Result){
 			defer wg.Done()
-			var result  []Result
-			fileData,err := ioutil.ReadFile(file)
+			result:= []Result{}
+			fileData,err := ioutil.ReadFile(fl)
 			if err != nil{
-				fmt.Print("cant't read file: " + file)
+				fmt.Print("cant't read file: " + fl)
 			}
 			lines := strings.Split(string(fileData),"\n")
 			for index, line:= range lines {
 				if strings.Contains(line,phrase){
-					words:= strings.Split(line, " ")
-					for col,word:=range words {
-						if word == phrase{
-							result = append(result, Result{Phrase: phrase, Line: line, LineNum: int64(index+1),ColNum: int64(col+1)})
-							//fmt.Println(file,line)
-							break;
-						}
-					}
+					result = append(result, Result{Phrase: phrase, Line: line, LineNum: int64(index+1),ColNum:  int64(strings.Index(line, phrase)) + 1})
+					
 				}
 			}
+			if len(result)>0{
+				ch <- result
+			}
 			
-			ch <- result
-			
-		}()
+		}(ctx, file, i, ch)
 	}
-	wg.Wait()
 	
+	go func() {
+		defer close(ch)
+		wg.Wait()
+
+	}()
 	return ch
 }
