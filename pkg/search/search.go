@@ -47,3 +47,47 @@ func All(ctx context.Context, phrase string, files []string)<-chan []Result{
 	}()
 	return ch
 }
+
+
+func Any(ctx context.Context, phrase string, files []string)<-chan Result{
+	ch := make(chan Result)
+	wg := sync.WaitGroup{}
+	ctx,cancel := context.WithCancel(ctx)
+	for i,file := range files{
+		wg.Add(1)
+		go func(ctx context.Context, fl string, i int, ch chan<- Result){
+			defer wg.Done()
+			result:= Result{}
+			fileData,err := ioutil.ReadFile(fl)
+			if err != nil{
+				fmt.Print("cant't read file: " + fl)
+			}
+			lines := strings.Split(string(fileData),"\n")
+			for index, line:= range lines {
+				select {
+					case <-ctx.Done():
+						return
+					default:
+						
+				}
+				if strings.Contains(line,phrase){
+					result = Result{Phrase: phrase, Line: line, LineNum: int64(index+1),ColNum:  int64(strings.Index(line, phrase)) + 1}
+					ch <- result
+					cancel()
+				}
+			}
+				
+				
+			
+			
+		}(ctx, file, i, ch)
+	}
+	
+	go func() {
+		defer close(ch)
+		wg.Wait()
+		cancel()
+
+	}()
+	return ch
+}
